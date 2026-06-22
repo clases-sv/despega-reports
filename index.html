@@ -112,7 +112,7 @@
   </header>
 
   <main class="viewport">
-      <iframe id="board-0" class="board is-active" role="tabpanel" aria-labelledby="tab-0" title="Estudiantes seleccionados para la prueba final" src="https://jbhuerta-sv.github.io/estudiantes/"></iframe>
+      <iframe id="board-0" class="board is-active" role="tabpanel" aria-labelledby="tab-0" title="Estudiantes seleccionados para la prueba final" data-src="https://jbhuerta-sv.github.io/estudiantes/"></iframe>
       <iframe id="board-1" class="board" role="tabpanel" aria-labelledby="tab-1" title="Asistencia del equipo técnico por escuela" data-src="https://jbhuerta-sv.github.io/tecnicos_ce/" loading="lazy"></iframe>
       <iframe id="board-2" class="board" role="tabpanel" aria-labelledby="tab-2" title="Asistencia de estudiantes el día de la prueba" data-src="https://jbhuerta-sv.github.io/prueba/" loading="lazy"></iframe>
       <iframe id="board-3" class="board" role="tabpanel" aria-labelledby="tab-3" title="Entrega de tablets" data-src="https://clases-sv.github.io/tablets/" loading="lazy"></iframe>
@@ -123,6 +123,28 @@
       var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
       var boards = Array.prototype.slice.call(document.querySelectorAll('.board'));
 
+      // El tablero vive en otro dominio, así que no podemos llamar a su mapa
+      // directamente. Un cambio de ancho imperceptible dispara el evento
+      // 'resize' dentro del iframe y hace que Leaflet recalcule su tamaño.
+      function nudge(b){
+        b.style.width = '99.9%';
+        requestAnimationFrame(function(){
+          b.style.width = '';
+          // segundo reajuste por si el mapa tardó en montar (tiles, datos)
+          setTimeout(function(){
+            b.style.width = '99.95%';
+            requestAnimationFrame(function(){ b.style.width = ''; });
+          }, 400);
+        });
+      }
+
+      function load(b){
+        if (!b.getAttribute('src') && b.dataset.src){
+          b.addEventListener('load', function(){ nudge(b); });
+          b.setAttribute('src', b.dataset.src);
+        }
+      }
+
       function activate(i){
         tabs.forEach(function(t, j){
           var on = i === j;
@@ -131,12 +153,19 @@
         });
         boards.forEach(function(b, j){
           var on = i === j;
-          if (on && !b.getAttribute('src') && b.dataset.src){
-            b.setAttribute('src', b.dataset.src); // carga diferida la 1ª vez
-          }
           b.classList.toggle('is-active', on);
+          if (on){
+            if (!b.getAttribute('src')) load(b);  // 1ª vez: carga diferida
+            else nudge(b);                        // ya cargado: recalcular tamaño
+          }
         });
       }
+
+      // Carga el primer tablero cuando el layout ya tiene su tamaño definitivo,
+      // para que el mapa se inicialice con las dimensiones correctas.
+      function start(){ requestAnimationFrame(function(){ load(boards[0]); }); }
+      if (document.readyState === 'complete') start();
+      else window.addEventListener('load', start);
 
       tabs.forEach(function(tab, i){
         tab.addEventListener('click', function(){ activate(i); });
